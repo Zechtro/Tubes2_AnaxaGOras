@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	// b "lala/bfs"
-	b "lala/bfs1"
 	"time"
+	b "web-scraper/bfs"
 )
 
 func main() {

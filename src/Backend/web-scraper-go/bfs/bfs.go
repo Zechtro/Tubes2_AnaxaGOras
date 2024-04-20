@@ -1,4 +1,4 @@
-package bfs1
+package bfs
 
 import (
 	"fmt"
