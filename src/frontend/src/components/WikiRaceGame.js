@@ -45,7 +45,7 @@ const WikiRaceGame = () => {
         </div>
       </div>
 
-      <div className="flex justify-between mb-6">
+      <div className="flex justify-center mb-6 ml-5">
         <Algorithm
           label="BFS"
           value="bfs"
