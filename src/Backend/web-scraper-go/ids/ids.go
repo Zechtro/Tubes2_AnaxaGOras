@@ -9,6 +9,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/extensions"
 )
 
 var (
@@ -22,17 +23,21 @@ var (
 	rootTitle    string
 	mutex        sync.Mutex
 
+	target string
+	root   string
+
 	GraphSolusi             = GraphView{Nodes: []Node{}, Edges: []Edge{}}
 	PageScraped             = 0
 	ResultDepth             int
 	Status                  string
 	Err_msg                 string
-	urlToTitle              = make(map[string]string)
-	solutionParentChildBool = make(map[string]map[string]bool)
-	insertedNodeToJSON      = make(map[string]bool)
+	isInit                  bool = false
+	urlToTitle                   = make(map[string]string)
+	solutionParentChildBool      = make(map[string]map[string]bool)
+	insertedNodeToJSON           = make(map[string]bool)
 )
 
-func IDS(inputTitle string, searchTitle string, iteration int, wg *sync.WaitGroup) {
+func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 	defer wg.Done() // Menandai bahwa goroutine telah selesai
 	pageToScrape := baseLink + inputTitle
 
@@ -59,14 +64,14 @@ func IDS(inputTitle string, searchTitle string, iteration int, wg *sync.WaitGrou
 					val, exists := depthNode[foundTitle]
 					newVal := depthNode[inputTitle] + 1
 
-					if !exists && val == newVal {
+					if exists && val == newVal {
 						childNparent[foundTitle] = append(childNparent[foundTitle], inputTitle)
-					} else if !exists || val > newVal {
+					} else if !exists {
 						depthNode[foundTitle] = newVal
 						childNparent[foundTitle] = []string{inputTitle}
 					}
 
-					if foundTitle == searchTitle {
+					if foundTitle == target {
 						alrFound = true
 						fmt.Println(inputTitle)
 						fmt.Println(foundTitle)
@@ -74,7 +79,7 @@ func IDS(inputTitle string, searchTitle string, iteration int, wg *sync.WaitGrou
 					} else if !alrFound && iteration != 1 && !(!exists || val > newVal) {
 						wg.Add(1) // Menambahkan goroutine baru ke wait group
 
-						go IDS(foundTitle, searchTitle, iteration-1, wg)
+						go IDS(foundTitle, target, iteration-1, wg)
 					}
 					mutex.Unlock() // Membuka kunci akses ke variabel bersama
 				}
@@ -88,42 +93,119 @@ func IDS(inputTitle string, searchTitle string, iteration int, wg *sync.WaitGrou
 }
 
 func MainIDS(inputTitle string, searchTitle string) {
-	targetTitle = searchTitle
-	rootTitle = inputTitle
-	childNparent[inputTitle] = []string{inputTitle}
-	depthNode[inputTitle] = 1
-	iteration := 1
+	// targetTitle = searchTitle
+	// rootTitle = inputTitle
+	var invalidStart bool = false
+	var invalidTarget bool = false
+	if !isInit {
+		isInit = true
+		var wg sync.WaitGroup
+		for i := 0; i < 2; i++ {
+			wg.Add(1)
+			limiter <- 1
+			go func(i int) {
+				defer wg.Done()
+				c1 := colly.NewCollector(
+					colly.Async(true),
+				)
+				extensions.RandomUserAgent(c1)
 
-	start := time.Now()
-	var wg sync.WaitGroup
+				c1.OnError(func(_ *colly.Response, err error) {
+					fmt.Println("Invalid", err)
+					if i == 0 {
+						invalidStart = true
+					} else {
+						invalidTarget = true
+					}
+				})
 
-	for !alrFound {
-		wg.Add(1) // Menambahkan goroutine pertama ke wait group
-		go IDS(inputTitle, searchTitle, iteration, &wg)
-		wg.Wait() // Menunggu sampai semua goroutine selesai
-		fmt.Println("TESTING")
-		iteration += 1
+				c1.OnHTML("#firstHeading", func(e *colly.HTMLElement) {
+					if e.ChildText(".mw-page-title-main") != "" {
+						if i == 0 {
+							rootTitle = e.ChildText(".mw-page-title-main")
+						} else {
+							targetTitle = e.ChildText(".mw-page-title-main")
+						}
+					} else if e.Text != "" {
+						if i == 0 {
+							rootTitle = e.Text
+						} else {
+							targetTitle = e.Text
+						}
+					}
+				})
+
+				c1.OnHTML("link", func(e *colly.HTMLElement) {
+					if e.Attr("rel") == "canonical" {
+						if i != 0 {
+							target = e.Attr("href")[24:]
+							fmt.Println("Target", target)
+						} else {
+							root = e.Attr("href")[24:]
+							depthNode[root] = 0
+							fmt.Println("Root", root)
+						}
+					}
+				})
+				if i == 0 {
+					c1.Visit(baseLink + inputTitle)
+				} else {
+					c1.Visit(baseLink + searchTitle)
+				}
+				c1.Wait()
+				<-limiter
+			}(i)
+		}
+		wg.Wait()
+	}
+	if !invalidStart && !invalidTarget {
+		childNparent[inputTitle] = []string{inputTitle}
+		depthNode[inputTitle] = 1
+		iteration := 1
+
+		start := time.Now()
+		var wg sync.WaitGroup
+
+		for !alrFound {
+			wg.Add(1) // Menambahkan goroutine pertama ke wait group
+			go IDS(inputTitle, target, iteration, &wg)
+			wg.Wait() // Menunggu sampai semua goroutine selesai
+			fmt.Println("TESTING")
+			iteration += 1
+		}
+
+		end := time.Now()
+		durasi := end.Sub(start)
+		fmt.Println("Waktu eksekusi:", durasi.Milliseconds())
+
+		var a = childNparent[target]
+		fmt.Print(target, ", ")
+		for a[0] != inputTitle {
+			fmt.Println(len(a))
+			fmt.Print(a[0], ", ")
+			a = childNparent[a[0]]
+		}
+		fmt.Print(a[0])
+		fmt.Println("\nPage Scraped: ", PageScraped)
+
+		for _, parentTemp := range childNparent[target] {
+			insertToSolution(target, parentTemp)
+		}
+		Status = "OK"
+		Err_msg = ""
+	} else {
+		ResultDepth = 0
+		if invalidStart && invalidTarget {
+			Err_msg = "Start Page and Target Page Not Found"
+		} else if invalidStart {
+			Err_msg = "Start Page Not Found"
+		} else {
+			Err_msg = "Target Page Not Found"
+		}
+		Status = "ERROR"
+		return
 	}
 
-	end := time.Now()
-	durasi := end.Sub(start)
-	fmt.Println("Waktu eksekusi:", durasi.Milliseconds())
-
-	var a = childNparent[searchTitle]
-	fmt.Print(searchTitle, ", ")
-	for a[0] != inputTitle {
-		fmt.Println(len(a))
-		fmt.Print(a[0], ", ")
-		a = childNparent[a[0]]
-	}
-	fmt.Print(a[0])
-	fmt.Println("\nPage Scraped: ", PageScraped)
-
-	for _, parentTemp := range childNparent[searchTitle] {
-		insertToSolution(searchTitle, parentTemp)
-	}
-	Status = "OK"
-	Err_msg = ""
 }
 
 // HELPER FUNCTIONS
