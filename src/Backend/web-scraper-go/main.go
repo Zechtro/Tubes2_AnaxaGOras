@@ -7,6 +7,7 @@ import (
 
 	"time"
 	b "web-scraper/bfs"
+	i "web-scraper/ids"
 	s "web-scraper/structure"
 )
 
@@ -65,7 +66,16 @@ func request_response_Handler(w http.ResponseWriter, r *http.Request) {
 				respInfo.ExecutionTime = float64(endTime.Sub(startTime).Seconds() * 1000000 / 1000)
 			} else if reqInfo.Algorithm == "ids" {
 				// ALGORITMA IDS
-				fmt.Println("IDS HERE")
+				startTime := time.Now()
+				fmt.Println("Processing IDS...")
+				i.MainIDS(wiki+reqInfo.StartPage, wiki+reqInfo.TargetPage)
+				endTime := time.Now()
+				respInfo.Status = i.Status
+				respInfo.Error_Message = i.Err_msg
+				respInfo.Graph = i.GraphSolusi
+				respInfo.ResultDepth = b.ResultDepth
+				respInfo.ArticleChecked = i.PageScraped
+				respInfo.ExecutionTime = float64(endTime.Sub(startTime).Seconds() * 1000000 / 1000)
 
 			}
 			// RESPONSE TO FRONTEND

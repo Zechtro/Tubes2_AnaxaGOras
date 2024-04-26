@@ -3,7 +3,7 @@ package ids
 import (
 	"fmt"
 	"strings"
-	"sync" // Import package sync untuk mengatur goroutine
+	"sync"
 	"time"
 	. "web-scraper/structure"
 
@@ -15,18 +15,22 @@ var (
 	// urlToTitle   = make(map[string]string)
 	childNparent = make(map[string][]string)
 	depthNode    = make(map[string]int)
-	baseLink     = "https://en.wikipedia.org/wiki/"
+	baseLink     = "https://en.wikipedia.org"
+	wiki         = "/wiki/"
 	limiter      = make(chan int, 150)
 	alrFound     = false
 	targetTitle  string
 	rootTitle    string
 	mutex        sync.Mutex
 
-	GraphSolusi = GraphView{Nodes: []Node{}, Edges: []Edge{}}
-	PageScraped = 0
-	ResultDepth int
-	Status      string
-	Err_msg     string
+	GraphSolusi             = GraphView{Nodes: []Node{}, Edges: []Edge{}}
+	PageScraped             = 0
+	ResultDepth             int
+	Status                  string
+	Err_msg                 string
+	urlToTitle              = make(map[string]string)
+	solutionParentChildBool = make(map[string]map[string]bool)
+	insertedNodeToJSON      = make(map[string]bool)
 )
 
 func IDS(inputTitle string, searchTitle string, iteration int, wg *sync.WaitGroup) {
@@ -49,7 +53,7 @@ func IDS(inputTitle string, searchTitle string, iteration int, wg *sync.WaitGrou
 		e.DOM.Find("a").Each(func(_ int, s *goquery.Selection) {
 			if attr, ok := s.Attr("href"); ok {
 				if isWiki(attr) {
-					var foundTitle string = getArticleTitle(attr)
+					var foundTitle string = attr
 
 					mutex.Lock() // Mengunci akses ke variabel bersama
 					PageScraped = PageScraped + 1
@@ -116,7 +120,11 @@ func MainIDS(inputTitle string, searchTitle string) {
 	fmt.Print(a[0])
 	fmt.Println("\nPage Scraped: ", PageScraped)
 
-	insertToJSON(targetTitle, 0)
+	for _, parentTemp := range childNparent[searchTitle] {
+		insertToSolution(searchTitle, parentTemp)
+	}
+	Status = "OK"
+	Err_msg = ""
 }
 
 // HELPER FUNCTIONS
@@ -134,46 +142,136 @@ func isWiki(link string) bool {
 	}
 }
 
-func getArticleTitle(link string) string {
-	return link[6:]
+func insertToSolution(child string, parent string) {
+	// Mendapatkan Judul Artikel Child
+	_, cExist := urlToTitle[child]
+	if !cExist {
+		cc := colly.NewCollector(
+			colly.Async(true),
+		)
+
+		cc.OnHTML("#firstHeading", func(e *colly.HTMLElement) {
+			if e.ChildText(".mw-page-title-main") != "" {
+				urlToTitle[child] = e.ChildText(".mw-page-title-main")
+			} else if e.Text != "" {
+				urlToTitle[child] = e.Text
+			}
+		})
+
+		cc.Visit(baseLink + child)
+		cc.Wait()
+	}
+
+	// Mendapatkan Judul Artikel Parent
+	_, pExist := urlToTitle[parent]
+	if !pExist {
+		cp := colly.NewCollector(
+			colly.Async(true),
+		)
+
+		cp.OnHTML("#firstHeading", func(e *colly.HTMLElement) {
+			if e.ChildText(".mw-page-title-main") != "" {
+				urlToTitle[parent] = e.ChildText(".mw-page-title-main")
+			} else if e.Text != "" {
+				urlToTitle[parent] = e.Text
+			}
+		})
+
+		cp.Visit(baseLink + parent)
+		cp.Wait()
+	}
+
+	if urlToTitle[child] == urlToTitle[parent] {
+		return
+	}
+	// Cek apakah child-parent sudah pernah dimasukkan ke solusi
+	_, existChild := solutionParentChildBool[urlToTitle[parent]]
+	if !existChild {
+		solutionParentChildBool[urlToTitle[parent]] = make(map[string]bool)
+	}
+	if !solutionParentChildBool[urlToTitle[parent]][urlToTitle[child]] {
+		solutionParentChildBool[urlToTitle[parent]][urlToTitle[child]] = true
+		// Masukkan ke struktur JSON
+		insertToJSON(child, parent)
+	} else {
+		return
+	}
+
+	// cek parentnya dari parent
+	var n int = len(childNparent[parent])
+	if n == 0 || urlToTitle[parent] == rootTitle {
+		return
+	} else {
+		for _, parentTemp := range childNparent[parent] {
+			insertToSolution(parent, parentTemp)
+		}
+	}
 }
 
-func insertToJSON(child string, childDepth int) {
-	var font_size int
-	var node_size int
-	if child == targetTitle || child == rootTitle {
-		font_size = 15
-		node_size = 15
-	} else {
-		font_size = 10
-		node_size = 10
+func insertToJSON(child string, parent string) {
+	if urlToTitle[child] == rootTitle {
+		depthNode[child] = 0
+	} else if urlToTitle[parent] == rootTitle {
+		depthNode[parent] = 0
 	}
-	GraphSolusi.Nodes = append(GraphSolusi.Nodes, Node{
-		Id:           child,
-		TitleArticle: child,
-		UrlArticle:   baseLink + child,
-		Shape:        "star",
-		Size:         node_size,
-		Color: Color{
-			Border:     DepthColor[childDepth],
-			Background: DepthColor[childDepth],
-		},
-		Font: Font{
-			Color: DepthColor[childDepth],
-			Size:  font_size,
-		},
-	})
-
-	if child != rootTitle {
-
-		for _, parent := range childNparent[child] {
-			GraphSolusi.Edges = append(GraphSolusi.Edges, Edge{
-				From: parent,
-				To:   child,
-			})
-			insertToJSON(parent, childDepth+1)
+	_, existChildNode := insertedNodeToJSON[urlToTitle[child]]
+	if !existChildNode {
+		insertedNodeToJSON[urlToTitle[child]] = true
+		var font_size int
+		var node_size int
+		if urlToTitle[child] == targetTitle || urlToTitle[child] == rootTitle {
+			font_size = 15
+			node_size = 15
+		} else {
+			font_size = 10
+			node_size = 10
 		}
-	} else {
-		ResultDepth = childDepth
+		GraphSolusi.Nodes = append(GraphSolusi.Nodes, Node{
+			Id:           urlToTitle[child],
+			TitleArticle: urlToTitle[child],
+			UrlArticle:   baseLink + child,
+			Shape:        "star",
+			Size:         node_size,
+			Color: Color{
+				Border:     DepthColor[depthNode[child]],
+				Background: DepthColor[depthNode[child]],
+			},
+			Font: Font{
+				Color: DepthColor[depthNode[child]],
+				Size:  font_size,
+			},
+		})
 	}
+	_, existParentNode := insertedNodeToJSON[urlToTitle[parent]]
+	if !existParentNode {
+		insertedNodeToJSON[urlToTitle[parent]] = true
+		var font_size int
+		var node_size int
+		if urlToTitle[parent] == targetTitle || urlToTitle[parent] == rootTitle {
+			font_size = 15
+			node_size = 15
+		} else {
+			font_size = 10
+			node_size = 10
+		}
+		GraphSolusi.Nodes = append(GraphSolusi.Nodes, Node{
+			Id:           urlToTitle[parent],
+			TitleArticle: urlToTitle[parent],
+			UrlArticle:   baseLink + parent,
+			Shape:        "star",
+			Size:         node_size,
+			Color: Color{
+				Border:     DepthColor[depthNode[parent]],
+				Background: DepthColor[depthNode[parent]],
+			},
+			Font: Font{
+				Color: DepthColor[depthNode[parent]],
+				Size:  font_size,
+			},
+		})
+	}
+	GraphSolusi.Edges = append(GraphSolusi.Edges, Edge{
+		From: urlToTitle[parent],
+		To:   urlToTitle[child],
+	})
 }

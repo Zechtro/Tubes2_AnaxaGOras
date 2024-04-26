@@ -187,7 +187,7 @@ func BFS(start_page []string, target_page string) {
 	var mu sync.Mutex
 	var invalidStart bool = false
 	var invalidTarget bool = false
-	var nextBreathList = []string{}
+	var nextBreadthList = []string{}
 	var isFound bool = false
 	var n int = len(start_page)
 	limiter := make(chan int, 150)
@@ -296,7 +296,7 @@ func BFS(start_page []string, target_page string) {
 								child_parent_bool[page] = make(map[string]bool)
 								child_parent_bool[page][currentPage] = true
 
-								nextBreathList = append(nextBreathList, page)
+								nextBreadthList = append(nextBreadthList, page)
 								if page == target {
 									// masukin ke solusi
 									insertToSolution(page, currentPage)
@@ -342,7 +342,7 @@ func BFS(start_page []string, target_page string) {
 			return
 		} else {
 			currentDepth += 1
-			BFS(nextBreathList, target)
+			BFS(nextBreadthList, target)
 		}
 	} else {
 		ResultDepth = 0
