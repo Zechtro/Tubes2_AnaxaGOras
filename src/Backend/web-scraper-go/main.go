@@ -73,7 +73,7 @@ func request_response_Handler(w http.ResponseWriter, r *http.Request) {
 				respInfo.Status = i.Status
 				respInfo.Error_Message = i.Err_msg
 				respInfo.Graph = i.GraphSolusi
-				respInfo.ResultDepth = b.ResultDepth
+				respInfo.ResultDepth = i.ResultDepth
 				respInfo.ArticleChecked = i.PageScraped
 				respInfo.ExecutionTime = float64(endTime.Sub(startTime).Seconds() * 1000000 / 1000)
 

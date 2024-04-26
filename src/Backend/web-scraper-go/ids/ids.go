@@ -60,13 +60,13 @@ func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 					var foundTitle string = attr
 
 					mutex.Lock() // Mengunci akses ke variabel bersama
-					PageScraped = PageScraped + 1
 					val, exists := depthNode[foundTitle]
 					newVal := depthNode[inputTitle] + 1
 
 					if exists && val == newVal {
 						childNparent[foundTitle] = append(childNparent[foundTitle], inputTitle)
 					} else if !exists {
+						PageScraped = PageScraped + 1
 						depthNode[foundTitle] = newVal
 						childNparent[foundTitle] = []string{inputTitle}
 					}
@@ -78,7 +78,7 @@ func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 						fmt.Println(iteration)
 					} else if !alrFound && iteration != 1 && !(!exists || val > newVal) {
 						wg.Add(1) // Menambahkan goroutine baru ke wait group
-
+						// limiter <- 1
 						go IDS(foundTitle, target, iteration-1, wg)
 					}
 					mutex.Unlock() // Membuka kunci akses ke variabel bersama
@@ -159,20 +159,20 @@ func MainIDS(inputTitle string, searchTitle string) {
 		wg.Wait()
 	}
 	if !invalidStart && !invalidTarget {
-		childNparent[inputTitle] = []string{inputTitle}
-		depthNode[inputTitle] = 1
 		iteration := 1
 
 		start := time.Now()
 		var wg sync.WaitGroup
 
 		for !alrFound {
+			fmt.Println("Iterasi ke-", iteration)
 			wg.Add(1) // Menambahkan goroutine pertama ke wait group
+			// limiter <- 1
 			go IDS(inputTitle, target, iteration, &wg)
 			wg.Wait() // Menunggu sampai semua goroutine selesai
-			fmt.Println("TESTING")
 			iteration += 1
 		}
+		close(limiter)
 
 		end := time.Now()
 		durasi := end.Sub(start)
@@ -193,6 +193,7 @@ func MainIDS(inputTitle string, searchTitle string) {
 		}
 		Status = "OK"
 		Err_msg = ""
+		ResultDepth = depthNode[target]
 	} else {
 		ResultDepth = 0
 		if invalidStart && invalidTarget {
@@ -368,4 +369,5 @@ func ResetData() {
 	urlToTitle = make(map[string]string)
 	solutionParentChildBool = make(map[string]map[string]bool)
 	insertedNodeToJSON = make(map[string]bool)
+	isInit = false
 }
