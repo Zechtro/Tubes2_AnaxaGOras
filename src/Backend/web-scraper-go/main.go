@@ -8,7 +8,9 @@ import (
 
 	// b "lala/bfs"
 	"time"
+	str "web-scraper/structure"
 	b "web-scraper/bfs"
+	i "web-scraper/ids"
 )
 
 type RequestInfo struct {
@@ -20,7 +22,7 @@ type RequestInfo struct {
 type ResponseInfo struct {
 	Status        string      `json:"status"`
 	Error_Message string      `json:"err"`
-	Graph         b.GraphView `json:"graph"`
+	Graph         str.GraphView `json:"graph"`
 	ResultDepth   int         `json:"depth"`
 	ExecutionTime float64     `json:"time"`
 }
@@ -106,7 +108,15 @@ func request_response_Handler(w http.ResponseWriter, r *http.Request) {
 				// RESPONSE TO FRONTEND
 			} else if reqInfo.Algorithm == "ids" {
 				// ALGORITMA IDS
-				fmt.Println("IDS HERE")
+				startTime := time.Now()
+				fmt.Println("Processing IDS...")
+				i.MainIDS(reqInfo.StartPage, reqInfo.TargetPage)
+				endTime := time.Now()
+				respInfo.Status = i.Status
+				respInfo.Error_Message = i.Err_msg
+				respInfo.Graph = i.GraphSolusi
+				respInfo.ResultDepth = i.ResultDepth
+				respInfo.ExecutionTime = float64(endTime.Sub(startTime).Seconds() * 1000000 / 1000)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -148,7 +158,15 @@ func request_response_Handler(w http.ResponseWriter, r *http.Request) {
 			// RESPONSE TO FRONTEND
 		} else if reqInfo.Algorithm == "ids" {
 			// ALGORITMA IDS
-			fmt.Println("IDS HERE")
+			startTime := time.Now()
+			fmt.Println("Processing IDS...")
+			i.MainIDS(reqInfo.StartPage, reqInfo.TargetPage)
+			endTime := time.Now()
+			respInfo.Status = i.Status
+			respInfo.Error_Message = i.Err_msg
+			respInfo.Graph = i.GraphSolusi
+			respInfo.ResultDepth = i.ResultDepth
+			respInfo.ExecutionTime = float64(endTime.Sub(startTime).Seconds() * 1000000 / 1000)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
