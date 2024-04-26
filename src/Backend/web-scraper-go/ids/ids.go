@@ -17,7 +17,7 @@ var (
 	childNparent = make(map[string][]string)
 	depthNode    = make(map[string]int)
 	baseLink     = "https://en.wikipedia.org"
-	limiter      = make(chan int, 150)
+	limiter      = make(chan int, 500)
 	alrFound     = false
 	targetTitle  string
 	rootTitle    string
@@ -59,13 +59,13 @@ func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 				if isWiki(attr) {
 					var foundTitle string = attr
 
-					mutex.Lock() // Mengunci akses ke variabel bersama
-					val, exists := depthNode[foundTitle]
+					mutex.Lock()                 // Mengunci akses ke variabel bersama
+					val := depthNode[foundTitle] // val bernilai nol jika foundTitle belum pernah discrape
 					newVal := depthNode[inputTitle] + 1
 
-					if exists && val == newVal {
+					if val != 0 && val == newVal {
 						childNparent[foundTitle] = append(childNparent[foundTitle], inputTitle)
-					} else if !exists {
+					} else if val == 0 {
 						PageScraped = PageScraped + 1
 						depthNode[foundTitle] = newVal
 						childNparent[foundTitle] = []string{inputTitle}
@@ -76,7 +76,7 @@ func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 						fmt.Println(inputTitle)
 						fmt.Println(foundTitle)
 						fmt.Println(iteration)
-					} else if !alrFound && iteration != 1 && !(!exists || val > newVal) {
+					} else if !alrFound && iteration != 1 && !(val == 0 || val > newVal) {
 						wg.Add(1) // Menambahkan goroutine baru ke wait group
 						// limiter <- 1
 						go IDS(foundTitle, target, iteration-1, wg)
