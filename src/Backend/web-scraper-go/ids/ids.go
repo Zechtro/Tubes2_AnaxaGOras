@@ -15,17 +15,18 @@ var (
 	// urlToTitle   = make(map[string]string)
 	childNparent = make(map[string][]string)
 	depthNode    = make(map[string]int)
-	GraphSolusi  = GraphView{Nodes: []Node{}, Edges: []Edge{}}
 	baseLink 	 = "https://en.wikipedia.org/wiki/"
 	limiter		 = make(chan int, 150)
-	pageScraped  = 0
 	alrFound     = false
 	targetTitle  string
 	rootTitle    string
+	mutex        sync.Mutex
+	
+	GraphSolusi  = GraphView{Nodes: []Node{}, Edges: []Edge{}}
+	PageScraped  = 0
 	ResultDepth  int
 	Status 		 string
 	Err_msg 	 string
-	mutex        sync.Mutex
 )
 
 func IDS(inputTitle string, searchTitle string, iteration int, wg *sync.WaitGroup) {

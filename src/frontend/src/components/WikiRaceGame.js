@@ -13,6 +13,7 @@ const WikiRaceGame = () => {
   const [isResult, setIsResult] = useState(false)
   const [resultGraph, setResultGraph] = useState({nodes:[],edges:[]})
   const [resultDepth, setResultDepth] = useState(0)
+  const [articleChecked, setArticleChecked] = useState(0)
   const [resultTime, setResultTime] = useState(0)
   
   const [isError, setIsError] = useState(false)
@@ -29,86 +30,54 @@ const WikiRaceGame = () => {
     // } catch (error) {
     //   console.error('Error starting game:', error);    
     // }
-    setIsLoading(true)
-    try {
-      const response = await fetch('http://localhost:8000/api/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({algorithm: AlgorithmUsed, startPage: StartPage, targetPage : TargetPage})
-      });
-  
-      if (!response.ok) {
-          throw new Error('Network response was not ok');
-      }
-  
-      const data = await response.json(); 
-      if (data.status  === "OK"){
-        setIsError(false)
-        setIsResult(true)
-        setResultGraph(data.graph)
-        setResultDepth(data.depth)
-        setResultTime(data.time)
-      } else{
-        setIsError(true)
-        setErrorMsg(data.Error_Message)
-      }
-    } catch (error) {
+    if (StartPage === "" || TargetPage === ""){
       setIsError(true)
-      setErrorMsg("Error Fetching Data")
-      console.error('Error creating todo:', error);
-    }finally {
-      setIsLoading(false); // Set isLoading to false after fetch completes
+      setResultGraph({nodes:[],edges:[]})
+      setErrorMsg("Start Page and Target Page must not empty")
+    }else if (StartPage === TargetPage){
+      setIsError(true)
+      setResultGraph({nodes:[],edges:[]})
+      setErrorMsg("Start Page must not be the same with Target Page")
+    }else{
+      setIsLoading(true)
+      try {
+        const response = await fetch('http://localhost:8000/api/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({algorithm: AlgorithmUsed, startPage: StartPage, targetPage : TargetPage})
+        });
+    
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+    
+        const data = await response.json(); 
+        if (data.status  === "OK"){
+          setIsError(false)
+          setIsResult(true)
+          setResultGraph(data.graph)
+          setResultDepth(data.depth)
+          setArticleChecked(data.checked)
+          setResultTime(data.time)
+        } else{
+          setResultGraph({nodes:[],edges:[]})
+          setIsError(true)
+          setErrorMsg(data.Error_Message)
+        }
+      } catch (error) {
+        setResultGraph({nodes:[],edges:[]})
+        setIsError(true)
+        setErrorMsg("Error Fetching Data")
+        console.error('Error creating todo:', error);
+      }finally {
+        setIsLoading(false); // Set isLoading to false after fetch completes
+      }
     }
   };
 
-  const graphz = {
-    nodes: [
-        {id: "1", label: "Node 1", title: "node 1 tooltip text", shape:"star",size: 15},
-        {id: "2", label: "Timeline of the evolutionary history of life", title: "node 2 tooltip text",
-        shape: "star", size:50,color: {
-          border: "#222222",
-          background: "#FFFFFF"
-      },},
-        {id: "3", label: "Node 3", title: "node 3 tooltip text",
-        shape: "diamond"},
-        {id: "4", label: "Node 4", title: "node 4 tooltip text",
-        shape: "star"},
-        {id: "5", label: "Node 5     ", title: "node 5 tooltip text"},
-        {id: "6", label: "Snow", title: "node 6 tooltip text", shape: "circle"},
-        {id: "7", label: "Node 7", title: "node 7 tooltip text"},
-        {id: "8", label: "Node 8", title: "node 8 tooltip text"},
-        {id: "9", label: "Node 9", title: "node 9 tooltip text",shape: "star",
-        size: 15,
-        color: {
-            border: "#824D74",
-            background: "#824D74"
-        },
-        font: {
-            color: "#824D74",
-            size: 15
-        }}
-    ],
-    edges: [
-        {from: "1", to: "1", smooth: {type: "curvedCW"}, arrows: {from: {enabled: true, type: "circle"}, to: {enabled: true, type: "circle"}}},
-        {from: "1", to: "7", arrows: {from: {enabled: true, type: "vee"}, to: {enabled: true, type: "vee"}}},
-        {from: "1", to: "3", arrows: {to: {enabled: true, type: "curve"}}},
-        {from: "6", to: "5", color: {highlight: "#fff", opacity: 0.2}},
-        {from: "6", to: "2"},
-        {from: "7", to: "2"},
-        {from: "6", to: "7"},
-        {from: "6", to: "8"},
-        {from: "7", to: "8"},
-        {from: "8", to: "2"},
-        {from: "3", to: "7"},
-      ]
-  }
-
   var options = {
-    // groups:{
-    //   group1 : {size:400}
-    // },
     physics: {
-        enabled: false
+        enabled: true
     },
     interaction: {
         navigationButtons: true
@@ -176,8 +145,9 @@ const WikiRaceGame = () => {
         {isResult && !isLoading && !isError && <Graph graph={resultGraph} options={options}/>}
       </div>
       <div>
-        {isResult && !isLoading && !isError && <p>Depth           : {resultDepth}</p>}
-        {isResult && !isLoading && !isError && <p>Execution Time  : {resultTime} ms</p>}
+        {isResult && !isLoading && !isError && <p>Depth                 : {resultDepth}</p>}
+        {isResult && !isLoading && !isError && <p>Total Checked Article : {articleChecked}</p>}
+        {isResult && !isLoading && !isError && <p>Execution Time        : {resultTime} ms</p>}
       </div>
     </div>
   );
