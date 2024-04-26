@@ -1,155 +1,179 @@
-package ids 
- 
-import ( 
-	"fmt" 
+package ids
+
+import (
+	"fmt"
+	"strings"
+	"sync" // Import package sync untuk mengatur goroutine
+	"time"
+	. "web-scraper/structure"
+
+	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
-	// "log"
-) 
-	
-// Initiating maps	
-	
-//visitedNode["a"] = false jika tidak ada key "a"
-var visitedNode = make(map[string]bool)
+)
 
-var nodeDepthVisitiedAt = make(map[string]int)
+var (
+	// urlToTitle   = make(map[string]string)
+	childNparent = make(map[string][]string)
+	depthNode    = make(map[string]int)
+	baseLink     = "https://en.wikipedia.org/wiki/"
+	limiter      = make(chan int, 150)
+	alrFound     = false
+	targetTitle  string
+	rootTitle    string
+	mutex        sync.Mutex
 
-var solutionGraph = make(map[string][]string)
+	GraphSolusi = GraphView{Nodes: []Node{}, Edges: []Edge{}}
+	PageScraped = 0
+	ResultDepth int
+	Status      string
+	Err_msg     string
+)
 
-//wholeGraph["a"]["b"] = false jika "b" belum pernah menjadi child node dari "a"
-var wholeGraph = make(map[string]map[string]bool)
-
-var baseLink string = "https://en.wikipedia.org/wiki/"
-
-func nodeVisited(title string, depth int){
-	visitedNode[title] = true
-	nodeDepthVisitiedAt[title] = depth
-}
-
-func BFS(title string) { 
-
-	// pageToScrape := baseLink + "Google"
+func IDS(inputTitle string, searchTitle string, iteration int, wg *sync.WaitGroup) {
+	defer wg.Done() // Menandai bahwa goroutine telah selesai
+	pageToScrape := baseLink + inputTitle
 
 	c := colly.NewCollector()
 
-	
-	c.OnRequest(func(r *colly.Request) { 
-		fmt.Println("Visiting: ", r.URL) 
-		}) 
-		
-	c.OnError(func(_ *colly.Response, err error) { 
-		fmt.Println("Something went wrong: ", err) 
-	}) 
-			
-	c.OnResponse(func(r *colly.Response) { 
-		fmt.Println("Page visited: ", r.Request.URL) 
-	}) 
-	
-	c.OnHTML("a", func(e *colly.HTMLElement) { 
-		// printing all URLs associated with the a links in the page
-		if(isWiki(e.Attr("href"))){
-			fmt.Println(e.Attr("href")) 
-			fmt.Println(getArticleTitle(e.Attr("href")))
-		}
-	
-	}) 
-					
-	c.OnScraped(func(r *colly.Response) { 
-		fmt.Println(r.Request.URL, " scraped!") 
+	// c.OnRequest(func(r *colly.Request) {
+	// 	fmt.Println("Visiting: ", r.URL)
+	// })
+	// c.OnError(func(_ *colly.Response, err error) {
+	// 	fmt.Println("XXXXXXXX Something went wrong: ", err)
+	// })
+	// c.OnResponse(func(r *colly.Response) {
+	// 	fmt.Println(iteration, "Page visited: ", r.Request.URL)
+	// })
+
+	c.OnHTML("#bodyContent", func(e *colly.HTMLElement) {
+		e.DOM.Find("a").Each(func(_ int, s *goquery.Selection) {
+			if attr, ok := s.Attr("href"); ok {
+				if isWiki(attr) {
+					var foundTitle string = getArticleTitle(attr)
+
+					mutex.Lock() // Mengunci akses ke variabel bersama
+					PageScraped = PageScraped + 1
+					val, exists := depthNode[foundTitle]
+					newVal := depthNode[inputTitle] + 1
+
+					if !exists && val == newVal {
+						childNparent[foundTitle] = append(childNparent[foundTitle], inputTitle)
+					} else if !exists || val > newVal {
+						depthNode[foundTitle] = newVal
+						childNparent[foundTitle] = []string{inputTitle}
+					}
+
+					if foundTitle == searchTitle {
+						alrFound = true
+						fmt.Println(inputTitle)
+						fmt.Println(foundTitle)
+						fmt.Println(iteration)
+					} else if !alrFound && iteration != 1 && !(!exists || val > newVal) {
+						wg.Add(1) // Menambahkan goroutine baru ke wait group
+
+						go IDS(foundTitle, searchTitle, iteration-1, wg)
+					}
+					mutex.Unlock() // Membuka kunci akses ke variabel bersama
+				}
+			}
+		})
+
 	})
-					
-	c.Visit("https://en.wikipedia.org/wiki/Neuroscience")
-	fmt.Println(title)
+	limiter <- 1
+	c.Visit(pageToScrape)
+	<-limiter
 }
-				
-				
+
+func MainIDS(inputTitle string, searchTitle string) {
+	targetTitle = searchTitle
+	rootTitle = inputTitle
+	childNparent[inputTitle] = []string{inputTitle}
+	depthNode[inputTitle] = 1
+	iteration := 1
+
+	start := time.Now()
+	var wg sync.WaitGroup
+
+	for !alrFound {
+		wg.Add(1) // Menambahkan goroutine pertama ke wait group
+		go IDS(inputTitle, searchTitle, iteration, &wg)
+		wg.Wait() // Menunggu sampai semua goroutine selesai
+		fmt.Println("TESTING")
+		iteration += 1
+	}
+
+	end := time.Now()
+	durasi := end.Sub(start)
+	fmt.Println("Waktu eksekusi:", durasi.Milliseconds())
+
+	var a = childNparent[searchTitle]
+	fmt.Print(searchTitle, ", ")
+	for a[0] != inputTitle {
+		fmt.Println(len(a))
+		fmt.Print(a[0], ", ")
+		a = childNparent[a[0]]
+	}
+	fmt.Print(a[0])
+	fmt.Println("\nPage Scraped: ", PageScraped)
+
+	insertToJSON(targetTitle, 0)
+}
+
 // HELPER FUNCTIONS
-func isWiki(link string) bool{
-	if(len(link) <= 6){
-		// fmt.Println("Length <= 6")
+func isWiki(link string) bool {
+	if len(link) <= 6 {
 		return false
-	}else if(link[:6] == "/wiki/"){
-		// fmt.Println("Wiki link!")
-		return true;
-	}else{
-		// fmt.Println("NOT Wiki link!")
-		return false;
+	} else if link[:6] == "/wiki/" {
+		if strings.ContainsRune(link[6:], ':') {
+			return false
+		} else {
+			return true
+		}
+	} else {
+		return false
 	}
 }
 
-func getArticleTitle(link string) string{
+func getArticleTitle(link string) string {
 	return link[6:]
 }
 
+func insertToJSON(child string, childDepth int) {
+	var font_size int
+	var node_size int
+	if child == targetTitle || child == rootTitle {
+		font_size = 15
+		node_size = 15
+	} else {
+		font_size = 10
+		node_size = 10
+	}
+	GraphSolusi.Nodes = append(GraphSolusi.Nodes, Node{
+		Id:           child,
+		TitleArticle: child,
+		UrlArticle:   baseLink + child,
+		Shape:        "star",
+		Size:         node_size,
+		Color: Color{
+			Border:     DepthColor[childDepth],
+			Background: DepthColor[childDepth],
+		},
+		Font: Font{
+			Color: DepthColor[childDepth],
+			Size:  font_size,
+		},
+	})
 
-// SCRAPER FUNCTIONS
+	if child != rootTitle {
 
-// // Base Web Link
-// var baseLink string = "en.wikipedia.org/wiki/"
-
-// // initializing the list of pages to scrape with an empty slice 
-// var pagesToScrape []string 
-
-// // the first pagination URL to scrape 
-// pageToScrape := "https://scrapeme.live/shop/page/1/" 
-
-// // initializing the list of pages discovered with a pageToScrape 
-// pagesDiscovered := []string{ pageToScrape } 
-
-// // current iteration 
-// i := 1 
-// // max pages to scrape 
-// limit := 5 
-
-// // initializing a Colly instance 
-// c := colly.NewCollector() 
-
-// c.OnRequest(func(r *colly.Request) { 
-// 	fmt.Println("Visiting: ", r.URL) 
-// }) 
-
-// c.OnError(func(_ *colly.Response, err error) { 
-// 	log.Println("Something went wrong: ", err) 
-// }) 
-
-// c.OnResponse(func(r *colly.Response) { 
-// 	fmt.Println("Page visited: ", r.Request.URL) 
-// }) 
-
-// // iterating over the list of pagination links to implement the crawling logic 
-// c.OnHTML("a.page-numbers", func(e *colly.HTMLElement) { 
-// 	// discovering a new page 
-// 	newPaginationLink := e.Attr("href") 
-
-// 	// if the page discovered is new 
-// 	if !contains(pagesToScrape, newPaginationLink) { 
-// 		// if the page discovered should be scraped 
-// 		if !contains(pagesDiscovered, newPaginationLink) { 
-// 			pagesToScrape = append(pagesToScrape, newPaginationLink) 
-// 		} 
-// 		pagesDiscovered = append(pagesDiscovered, newPaginationLink) 
-// 	} 
-// }) 
-
-// c.OnHTML("li.product", func(e *colly.HTMLElement) { 
-// 	// scraping logic... 
-// }) 
-
-// c.OnScraped(func(response *colly.Response) { 
-// 	// until there is still a page to scrape 
-// 	if len(pagesToScrape) != 0 && i < limit { 
-// 		// getting the current page to scrape and removing it from the list 
-// 		pageToScrape = pagesToScrape[0] 
-// 		pagesToScrape = pagesToScrape[1:] 
-
-// 		// incrementing the iteration counter 
-// 		i++ 
-
-// 		// visiting a new page 
-// 		c.Visit(pageToScrape) 
-// 	} 
-// }) 
-
-// // visiting the first page 
-// c.Visit(pageToScrape) 
-
-// // convert the data to CSV...
+		for _, parent := range childNparent[child] {
+			GraphSolusi.Edges = append(GraphSolusi.Edges, Edge{
+				From: parent,
+				To:   child,
+			})
+			insertToJSON(parent, childDepth+1)
+		}
+	} else {
+		ResultDepth = childDepth
+	}
+}

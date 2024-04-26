@@ -7,6 +7,7 @@ import (
 
 	"time"
 	b "web-scraper/bfs"
+	s "web-scraper/structure"
 )
 
 type RequestInfo struct {
@@ -18,7 +19,7 @@ type RequestInfo struct {
 type ResponseInfo struct {
 	Status         string      `json:"status"`
 	Error_Message  string      `json:"err"`
-	Graph          b.GraphView `json:"graph"`
+	Graph          s.GraphView `json:"graph"`
 	ResultDepth    int         `json:"depth"`
 	ArticleChecked int         `json:"checked"`
 	ExecutionTime  float64     `json:"time"`
@@ -65,6 +66,7 @@ func request_response_Handler(w http.ResponseWriter, r *http.Request) {
 			} else if reqInfo.Algorithm == "ids" {
 				// ALGORITMA IDS
 				fmt.Println("IDS HERE")
+
 			}
 			// RESPONSE TO FRONTEND
 			w.Header().Set("Content-Type", "application/json")
