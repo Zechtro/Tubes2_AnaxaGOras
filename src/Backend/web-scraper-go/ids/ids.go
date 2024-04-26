@@ -16,7 +16,6 @@ var (
 	childNparent = make(map[string][]string)
 	depthNode    = make(map[string]int)
 	baseLink     = "https://en.wikipedia.org"
-	wiki         = "/wiki/"
 	limiter      = make(chan int, 150)
 	alrFound     = false
 	targetTitle  string
@@ -274,4 +273,17 @@ func insertToJSON(child string, parent string) {
 		From: urlToTitle[parent],
 		To:   urlToTitle[child],
 	})
+}
+
+func ResetData() {
+	childNparent = make(map[string][]string)
+	depthNode = make(map[string]int)
+	baseLink = "https://en.wikipedia.org"
+	limiter = make(chan int, 150)
+	alrFound = false
+	GraphSolusi = GraphView{Nodes: []Node{}, Edges: []Edge{}}
+	PageScraped = 0
+	urlToTitle = make(map[string]string)
+	solutionParentChildBool = make(map[string]map[string]bool)
+	insertedNodeToJSON = make(map[string]bool)
 }

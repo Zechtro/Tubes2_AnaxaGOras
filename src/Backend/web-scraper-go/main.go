@@ -84,6 +84,7 @@ func request_response_Handler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 			err := json.NewEncoder(w).Encode(respInfo)
 			b.ResetData()
+			i.ResetData()
 			fmt.Println("Reset Data")
 			if err != nil {
 				http.Error(w, "Error encoding data", http.StatusInternalServerError)
