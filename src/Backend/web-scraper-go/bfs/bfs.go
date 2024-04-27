@@ -283,9 +283,8 @@ func BFS(start_page []string, target_page string) {
 				c.OnHTML("link", func(e *colly.HTMLElement) {
 					if e.Attr("rel") == "canonical" {
 						page := e.Attr("href")[24:]
-						if page != currentPage {
+						if page != currentPage && page != root {
 							mu.Lock()
-							// cek jika sudah pernah dicek dan berada pada depth yang sama tetapi beda parent
 							if !checkedNode[page] && page != root {
 								TotalCheckedArticleTitle += 1
 								checkedNode[page] = true
@@ -342,10 +341,10 @@ func BFS(start_page []string, target_page string) {
 							page := e.Attr("href")
 							// cek jika sudah pernah dicek dan berada pada depth yang sama tetapi beda parent
 							if checkedNode[page] && page != root {
-								_, existParentTemp := child_parent_bool[page]
-								if !existParentTemp {
-									child_parent_bool[page] = make(map[string]bool)
-								}
+								// _, existParentTemp := child_parent_bool[page]
+								// if !existParentTemp {
+								// 	child_parent_bool[page] = make(map[string]bool)
+								// }
 								if depthOfNode[page] == currentDepth && !child_parent_bool[page][currentPage] {
 									child_parent_bool[page][currentPage] = true
 									if page == target && currentDepth <= depthTarget {
@@ -365,13 +364,14 @@ func BFS(start_page []string, target_page string) {
 								child_parent_bool[page] = make(map[string]bool)
 								child_parent_bool[page][currentPage] = true
 
-								nextBreadthList = append(nextBreadthList, page)
 								if page == target && currentDepth <= depthTarget {
 									// masukin ke solusi
 									depthTarget = currentDepth
 									fmt.Println(currentPage, target)
 									// insertToSolution(page, currentPage)
 									isFound = true
+								} else {
+									nextBreadthList = append(nextBreadthList, page)
 								}
 							}
 						}

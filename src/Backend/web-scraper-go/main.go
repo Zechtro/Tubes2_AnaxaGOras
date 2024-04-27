@@ -70,6 +70,7 @@ func request_response_Handler(w http.ResponseWriter, r *http.Request) {
 				startTime := time.Now()
 				fmt.Println("Processing IDS...")
 				i.MainIDS(wiki+reqInfo.StartPage, wiki+reqInfo.TargetPage)
+				i.GetSolutionAndConvertToJSON()
 				endTime := time.Now()
 				respInfo.Status = i.Status
 				respInfo.Error_Message = i.Err_msg

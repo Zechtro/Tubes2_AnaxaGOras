@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 	. "web-scraper/structure"
 
 	"github.com/gocolly/colly"
@@ -13,14 +12,16 @@ import (
 
 var (
 	// urlToTitle   = make(map[string]string)
-	childNparent = make(map[string][]string)
-	depthNode    = make(map[string]int)
-	baseLink     = "https://en.wikipedia.org"
-	limiter      = make(chan int, 500)
-	alrFound     = false
-	targetTitle  string
-	rootTitle    string
-	mutex        sync.Mutex
+	// childNparent    = make(map[string][]string)
+	childParentBool = make(map[string]map[string]bool)
+	depthNode       = make(map[string]int)
+	scrapedNode     = make(map[string]bool)
+	baseLink        = "https://en.wikipedia.org"
+	limiter         = make(chan int, 150)
+	alrFound        = false
+	targetTitle     string
+	rootTitle       string
+	mutex           sync.Mutex
 
 	target string
 	root   string
@@ -34,6 +35,7 @@ var (
 	urlToTitle                   = make(map[string]string)
 	solutionParentChildBool      = make(map[string]map[string]bool)
 	insertedNodeToJSON           = make(map[string]bool)
+	depthTarget             int  = 999
 )
 
 func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
@@ -51,46 +53,92 @@ func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 	// c.OnResponse(func(r *colly.Response) {
 	// 	fmt.Println(iteration, "Page visited: ", r.Request.URL)
 	// })
+	c.OnHTML("link", func(e *colly.HTMLElement) {
+		if e.Attr("rel") == "canonical" {
+			foundTitle := e.Attr("href")[24:]
+			mutex.Lock()
+			if foundTitle != inputTitle && foundTitle != root {
+				// mutex.Lock()
+				val := depthNode[foundTitle] // val bernilai nol jika foundTitle belum pernah discrape
+				newVal := depthNode[inputTitle] + 1
+				if val == 0 && foundTitle != root {
+					PageScraped += 1
+					depthNode[foundTitle] = newVal
+				}
+				_, existParentKey := childParentBool[foundTitle]
+				if !existParentKey {
+					childParentBool[foundTitle] = make(map[string]bool)
+				}
+				depthNode[foundTitle] = depthNode[inputTitle]
+
+				for keyParent, _ := range childParentBool[inputTitle] {
+					// fmt.Println("PINDAHI PARENT", inputTitle, keyParent)
+					childParentBool[foundTitle][keyParent] = true
+				}
+				if foundTitle == target {
+					// masukin ke solusi
+					fmt.Println(inputTitle, target)
+					// insertToSolution(foundTitle, inputTitle)
+					alrFound = true
+					depthTarget = depthNode[inputTitle]
+					fmt.Println("REDIRECT:", depthTarget)
+					e.Request.Abort()
+				} else {
+					scrapedNode[foundTitle] = true
+				}
+				// mutex.Unlock()
+			}
+			mutex.Unlock()
+		}
+	})
 
 	c.OnHTML("a", func(e *colly.HTMLElement) {
 		// e.DOM.Find("a").Each(func(_ int, s *goquery.Selection) {
 		// if attr:= e.Attr("href"); ok {
-		if isWiki(e.Attr("href")) {
-			// if e.Attr("class") == "mw-redirect" {
+		mutex.Lock() // Mengunci akses ke variabel bersama
+		if e.Attr("class") != "mw-file-description" {
+			if isWiki(e.Attr("href")) && e.Attr("href") != root {
+				// if e.Attr("class") == "mw-redirect" {
 
-			// } else if e.Attr("class") !=  {
+				// } else if e.Attr("class") !=  {
 
-			// }
-			var foundTitle string = e.Attr("href")
+				// }
+				var foundTitle string = e.Attr("href")
 
-			mutex.Lock()                 // Mengunci akses ke variabel bersama
-			val := depthNode[foundTitle] // val bernilai nol jika foundTitle belum pernah discrape
-			newVal := depthNode[inputTitle] + 1
+				val := depthNode[foundTitle] // val bernilai nol jika foundTitle belum pernah discrape
+				newVal := depthNode[inputTitle] + 1
 
-			if val != 0 && val == newVal {
-				childNparent[foundTitle] = append(childNparent[foundTitle], inputTitle)
-			} else if val == 0 {
-				PageScraped = PageScraped + 1
-				depthNode[foundTitle] = newVal
-				childNparent[foundTitle] = []string{inputTitle}
+				if val != 0 && val == newVal {
+					// fmt.Println("Val != 0 && Val == newVal", foundTitle, iteration)
+					if !childParentBool[foundTitle][inputTitle] {
+						// childNparent[foundTitle] = append(childNparent[foundTitle], inputTitle)
+						childParentBool[foundTitle][inputTitle] = true
+					}
+				} else if val == 0 {
+					// fmt.Println("Val == 0", foundTitle, iteration)
+					PageScraped = PageScraped + 1
+					depthNode[foundTitle] = newVal
+					// childNparent[foundTitle] = []string{inputTitle}
+					childParentBool[foundTitle] = make(map[string]bool)
+					childParentBool[foundTitle][inputTitle] = true
+				}
+				if foundTitle == target && newVal <= depthTarget {
+					// insertToSolution(foundTitle, inputTitle)
+					alrFound = true
+					depthTarget = newVal
+					fmt.Println(inputTitle)
+					fmt.Println(foundTitle)
+					fmt.Println(iteration)
+				} else if iteration != 1 && !scrapedNode[foundTitle] {
+					// fmt.Println("IDS", foundTitle, depthNode[foundTitle])
+					scrapedNode[foundTitle] = true
+					wg.Add(1) // Menambahkan goroutine baru ke wait group
+					// limiter <- 1
+					go IDS(foundTitle, target, iteration-1, wg)
+				}
 			}
-
-			if foundTitle == target {
-				insertToSolution(foundTitle, inputTitle)
-				alrFound = true
-				fmt.Println(inputTitle)
-				fmt.Println(foundTitle)
-				fmt.Println(iteration)
-			} else if iteration != 1 && !(val == 0 || val > newVal) {
-				wg.Add(1) // Menambahkan goroutine baru ke wait group
-				// limiter <- 1
-				go IDS(foundTitle, target, iteration-1, wg)
-			}
-			mutex.Unlock() // Membuka kunci akses ke variabel bersama
 		}
-		// }
-		// })
-
+		mutex.Unlock() // Membuka kunci akses ke variabel bersama
 	})
 	limiter <- 1
 	c.Visit(pageToScrape)
@@ -166,31 +214,33 @@ func MainIDS(inputTitle string, searchTitle string) {
 	if !invalidStart && !invalidTarget {
 		iteration := 1
 
-		start := time.Now()
-		var wg sync.WaitGroup
+		// start := time.Now()
+		// var wg sync.WaitGroup
 
 		for !alrFound {
+			var wg1 sync.WaitGroup
+			scrapedNode = make(map[string]bool)
 			fmt.Println("Iterasi ke-", iteration)
-			wg.Add(1) // Menambahkan goroutine pertama ke wait group
-			// limiter <- 1
-			go IDS(inputTitle, target, iteration, &wg)
-			wg.Wait() // Menunggu sampai semua goroutine selesai
+			wg1.Add(1) // Menambahkan goroutine pertama ke wait group
+			limiter <- 1
+			IDS(root, target, iteration, &wg1)
+			wg1.Wait() // Menunggu sampai semua goroutine selesai
 			iteration += 1
 		}
 		close(limiter)
 
-		end := time.Now()
-		durasi := end.Sub(start)
-		fmt.Println("Waktu eksekusi:", durasi.Milliseconds())
+		// end := time.Now()
+		// durasi := end.Sub(start)
+		// fmt.Println("Waktu eksekusi:", durasi.Milliseconds())
 
-		var a = childNparent[target]
-		fmt.Print(target, ", ")
-		for a[0] != inputTitle {
-			fmt.Println(len(a))
-			fmt.Print(a[0], ", ")
-			a = childNparent[a[0]]
-		}
-		fmt.Print(a[0])
+		// var a = childNparent[target]
+		// fmt.Print(target, ", ")
+		// for a[0] != inputTitle {
+		// 	fmt.Println(len(a))
+		// 	fmt.Print(a[0], ", ")
+		// 	a = childNparent[a[0]]
+		// }
+		// fmt.Print(a[0])
 		fmt.Println("\nPage Scraped: ", PageScraped)
 
 		// for _, parentTemp := range childNparent[target] {
@@ -285,12 +335,12 @@ func insertToSolution(child string, parent string) {
 	}
 
 	// cek parentnya dari parent
-	var n int = len(childNparent[parent])
-	if n == 0 || urlToTitle[parent] == rootTitle {
+	_, existKey := childParentBool[child]
+	if !existKey || urlToTitle[parent] == rootTitle {
 		return
 	} else {
-		for _, parentTemp := range childNparent[parent] {
-			insertToSolution(parent, parentTemp)
+		for key, _ := range childParentBool[parent] {
+			insertToSolution(parent, key)
 		}
 	}
 }
@@ -363,8 +413,18 @@ func insertToJSON(child string, parent string) {
 	})
 }
 
+func GetSolutionAndConvertToJSON() {
+	for parent, _ := range childParentBool[target] {
+		fmt.Println("Solusi", parent, depthNode[parent], depthTarget-1)
+		if depthNode[parent] == depthTarget-1 {
+			insertToSolution(target, parent)
+		}
+	}
+}
+
 func ResetData() {
-	childNparent = make(map[string][]string)
+	// childNparent = make(map[string][]string)
+	childParentBool = make(map[string]map[string]bool)
 	depthNode = make(map[string]int)
 	baseLink = "https://en.wikipedia.org"
 	limiter = make(chan int, 150)
@@ -375,4 +435,6 @@ func ResetData() {
 	solutionParentChildBool = make(map[string]map[string]bool)
 	insertedNodeToJSON = make(map[string]bool)
 	isInit = false
+	depthTarget = 999
+	scrapedNode = make(map[string]bool)
 }
