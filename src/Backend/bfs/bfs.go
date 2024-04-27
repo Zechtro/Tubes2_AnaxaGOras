@@ -118,7 +118,9 @@ func insertToSolution(child string, parent string) {
 			insertToSolution(parent, root)
 		} else {
 			for key, _ := range child_parent_bool[parent] {
-				insertToSolution(parent, key)
+				if depthOfNode[parent]-1 == depthOfNode[key] {
+					insertToSolution(parent, key)
+				}
 			}
 		}
 	}
