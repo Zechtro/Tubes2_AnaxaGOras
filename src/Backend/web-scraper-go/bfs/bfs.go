@@ -2,6 +2,7 @@ package bfs
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	. "web-scraper/structure"
 
@@ -311,23 +312,10 @@ func BFS(start_page []string, target_page string) {
 							depthOfNode[page] = depthOfNode[currentPage]
 
 							for keyParent, _ := range child_parent_bool[currentPage] {
-								// fmt.Println("PINDAHI PARENT", currentPage, keyParent)
 								child_parent_bool[page][keyParent] = true
 							}
 							child_parent_bool[currentPage] = child_parent_bool[page]
-							// if len(child_parent_bool[page]) > len(child_parent_bool[currentPage]) {
-							// 	child_parent_bool[currentPage] = child_parent_bool[page]
-							// } else {
-							// 	child_parent_bool[page] = child_parent_bool[currentPage]
-							// }
-							if page == "/wiki/Playtex" || page == "/wiki/International_Latex_Corporation" || page == "/wiki/Mylar" || currentPage == "/wiki/Mylar" {
-								fmt.Println("PAGE", child_parent_bool[page])
-								fmt.Println("CURRPAGE", child_parent_bool[currentPage])
-								fmt.Println(currentPage, page)
-							}
 							if page == target {
-								// masukin ke solusi
-								// insertToSolution(page, currentPage)
 								isFound = true
 								depthTarget = depthOfNode[currentPage]
 								fmt.Println("REDIRECT:", depthTarget)
@@ -341,28 +329,8 @@ func BFS(start_page []string, target_page string) {
 				c.OnHTML("a", func(e *colly.HTMLElement) {
 					mu.Lock()
 					if e.Attr("class") != "mw-file-description" {
-						// if e.Attr("class") == "mw-redirect" {
-						// 	if isWiki(e.Attr("href")) && e.Attr("href") != root {
-						// 		page := e.Attr("href")
-						// 		cr := colly.NewCollector()
-						// 		cr.OnHTML("link", func(e *colly.HTMLElement) {
-						// 			if e.Attr("rel") == "canonical" {
-						// 				canonPage := e.Attr("href")[24:]
-						// 				checkedNode[canonPage] = true
-						// 				depthOfNode[canonPage] = currentDepth
-						// 				depthOfNode[page] = currentDepth
-						// 				if canonPage == target {
-						// 					fmt.Println("REDIRECT", canonPage)
-						// 					isFound = true
-						// 					insertToSolution(canonPage, currentPage)
-						// 				}
-						// 			}
-						// 		})
-						// 		cr.Visit(baseLink + page)
-						// 	}
-						// } else {
 						// cek apakah link wikipedia
-						if isWiki(e.Attr("href")) && e.Attr("href") != root {
+						if isWiki(e.Attr("href")) && e.Attr("href") != root && e.Attr("href") != "/wiki/Main_Page" {
 							page := e.Attr("href")
 							// cek jika sudah pernah dicek dan berada pada depth yang sama tetapi beda parent
 							if checkedNode[page] && page != root {
@@ -373,8 +341,6 @@ func BFS(start_page []string, target_page string) {
 								if depthOfNode[page] == currentDepth && !child_parent_bool[page][currentPage] {
 									child_parent_bool[page][currentPage] = true
 									if page == target && currentDepth <= depthTarget {
-										// masukin ke solusi
-										// insertToSolution(page, currentPage)
 										isFound = true
 										depthTarget = currentDepth
 
@@ -393,7 +359,6 @@ func BFS(start_page []string, target_page string) {
 									// masukin ke solusi
 									depthTarget = currentDepth
 									fmt.Println(currentPage, target)
-									// insertToSolution(page, currentPage)
 									isFound = true
 								} else {
 									nextBreadthList = append(nextBreadthList, page)
@@ -460,7 +425,11 @@ func isWiki(link string) bool {
 	if len(link) <= 6 {
 		return false
 	} else if link[:6] == "/wiki/" {
-		return true
+		if strings.ContainsRune(link[6:], ':') {
+			return false
+		} else {
+			return true
+		}
 	} else {
 		return false
 	}
