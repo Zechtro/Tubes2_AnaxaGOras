@@ -89,7 +89,7 @@ func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 	c.OnHTML("a", func(e *colly.HTMLElement) {
 		mutex.Lock() // Mengunci akses ke variabel bersama
 		if e.Attr("class") != "mw-file-description" {
-			if isWiki(e.Attr("href")) && e.Attr("href") != root {
+			if isWiki(e.Attr("href")) && e.Attr("href") != root && e.Attr("href") != "/wiki/Main_Page" {
 				var foundTitle string = e.Attr("href")
 
 				val := depthNode[foundTitle] // val bernilai nol jika foundTitle belum pernah discrape
