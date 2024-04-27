@@ -57,6 +57,10 @@ func insertToSolution(child string, parent string) {
 			colly.Async(true),
 		)
 
+		cc.OnError(func(_ *colly.Response, err error) {
+			urlToTitle[child] = child[6:]
+		})
+
 		cc.OnHTML("#firstHeading", func(e *colly.HTMLElement) {
 			if e.ChildText(".mw-page-title-main") != "" {
 				urlToTitle[child] = e.ChildText(".mw-page-title-main")
@@ -75,6 +79,10 @@ func insertToSolution(child string, parent string) {
 		cp := colly.NewCollector(
 			colly.Async(true),
 		)
+
+		cp.OnError(func(_ *colly.Response, err error) {
+			urlToTitle[parent] = parent[6:]
+		})
 
 		cp.OnHTML("#firstHeading", func(e *colly.HTMLElement) {
 			if e.ChildText(".mw-page-title-main") != "" {
@@ -109,8 +117,14 @@ func insertToSolution(child string, parent string) {
 	if !existKey || urlToTitle[parent] == rootTitle {
 		return
 	} else {
-		for key, _ := range child_parent_bool[parent] {
-			insertToSolution(parent, key)
+		if child_parent_bool[parent][root] {
+			insertToSolution(parent, root)
+		} else {
+			for key, _ := range child_parent_bool[parent] {
+				if depthOfNode[parent]-1 == depthOfNode[key] {
+					insertToSolution(parent, key)
+				}
+			}
 		}
 	}
 }
@@ -177,6 +191,7 @@ func insertToJSON(child string, parent string) {
 			},
 		})
 	}
+	fmt.Println("EDGES:", parent, child)
 	GraphSolusi.Edges = append(GraphSolusi.Edges, Edge{
 		From: urlToTitle[parent],
 		To:   urlToTitle[child],
@@ -299,9 +314,19 @@ func BFS(start_page []string, target_page string) {
 								// fmt.Println("PINDAHI PARENT", currentPage, keyParent)
 								child_parent_bool[page][keyParent] = true
 							}
+							child_parent_bool[currentPage] = child_parent_bool[page]
+							// if len(child_parent_bool[page]) > len(child_parent_bool[currentPage]) {
+							// 	child_parent_bool[currentPage] = child_parent_bool[page]
+							// } else {
+							// 	child_parent_bool[page] = child_parent_bool[currentPage]
+							// }
+							if page == "/wiki/Playtex" || page == "/wiki/International_Latex_Corporation" || page == "/wiki/Mylar" || currentPage == "/wiki/Mylar" {
+								fmt.Println("PAGE", child_parent_bool[page])
+								fmt.Println("CURRPAGE", child_parent_bool[currentPage])
+								fmt.Println(currentPage, page)
+							}
 							if page == target {
 								// masukin ke solusi
-								fmt.Println(currentPage, target)
 								// insertToSolution(page, currentPage)
 								isFound = true
 								depthTarget = depthOfNode[currentPage]

@@ -75,6 +75,7 @@ func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 					// fmt.Println("PINDAHI PARENT", inputTitle, keyParent)
 					childParentBool[foundTitle][keyParent] = true
 				}
+				childParentBool[inputTitle] = childParentBool[foundTitle]
 				if foundTitle == target {
 					// masukin ke solusi
 					fmt.Println(inputTitle, target)
@@ -339,10 +340,15 @@ func insertToSolution(child string, parent string) {
 	if !existKey || urlToTitle[parent] == rootTitle {
 		return
 	} else {
-		for key, _ := range childParentBool[parent] {
-			insertToSolution(parent, key)
+		if child_parent_bool[parent][root] {
+			insertToSolution(parent, root)
+		} else {
+			for key, _ := range child_parent_bool[parent] {
+				if depthOfNode[parent]-1 == depthOfNode[key] {
+					insertToSolution(parent, key)
+				}
+			}
 		}
-	}
 }
 
 func insertToJSON(child string, parent string) {
