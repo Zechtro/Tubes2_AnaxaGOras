@@ -27,10 +27,6 @@ var depthTarget int = 999
 
 var urlToTitle = make(map[string]string)
 
-var SolutionGraph = make(map[string][]string)
-
-var totalPath int = 0
-
 var child_parent_bool = make(map[string]map[string]bool)
 var solutionParentChildBool = make(map[string]map[string]bool)
 
@@ -446,10 +442,6 @@ func ResetData() {
 	depthOfNode = make(map[string]int)
 
 	urlToTitle = make(map[string]string)
-
-	SolutionGraph = make(map[string][]string)
-
-	totalPath = 0
 
 	child_parent_bool = make(map[string]map[string]bool)
 	solutionParentChildBool = make(map[string]map[string]bool)
