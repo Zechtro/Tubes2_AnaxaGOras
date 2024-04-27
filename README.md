@@ -19,7 +19,7 @@
 
 
 ## General Information
-- This project aims to solve the _Cyberpunk 2077 Breach Protocol_ minigame by _Brute Force_ Algorithm. The minigame simulates hacking on local network from _ICE (Intrusion Countermeasures Electronics)_ on _Cyberpunk 2077_.
+- This project aims to solve the _Wikirace_ Game
 
 
 ## Technologies Used
