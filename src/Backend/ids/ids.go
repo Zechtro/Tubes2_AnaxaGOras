@@ -296,7 +296,7 @@ func insertToSolution(child string, parent string) {
 	}
 
 	// cek parentnya dari parent
-	_, existKey := childParentBool[child]
+	_, existKey := childParentBool[parent]
 	if !existKey || urlToTitle[parent] == rootTitle {
 		return
 	} else {

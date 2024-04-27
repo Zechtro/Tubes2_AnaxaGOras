@@ -110,7 +110,7 @@ func insertToSolution(child string, parent string) {
 	}
 
 	// cek parentnya dari parent
-	_, existKey := child_parent_bool[child]
+	_, existKey := child_parent_bool[parent]
 	if !existKey || urlToTitle[parent] == rootTitle {
 		return
 	} else {
@@ -118,9 +118,7 @@ func insertToSolution(child string, parent string) {
 			insertToSolution(parent, root)
 		} else {
 			for key, _ := range child_parent_bool[parent] {
-				if depthOfNode[parent]-1 == depthOfNode[key] {
-					insertToSolution(parent, key)
-				}
+				insertToSolution(parent, key)
 			}
 		}
 	}
@@ -308,7 +306,9 @@ func BFS(start_page []string, target_page string) {
 							depthOfNode[page] = depthOfNode[currentPage]
 
 							for keyParent, _ := range child_parent_bool[currentPage] {
-								child_parent_bool[page][keyParent] = true
+								if child_parent_bool[currentPage][keyParent] {
+									child_parent_bool[page][keyParent] = true
+								}
 							}
 							child_parent_bool[currentPage] = child_parent_bool[page]
 							if page == target {
