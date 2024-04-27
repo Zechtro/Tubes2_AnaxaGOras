@@ -22,6 +22,7 @@ var totalTryToScrapeArticle int = 0
 var totalErrorScrape int = 0
 
 var depthOfNode = make(map[string]int)
+var depthTarget int = 999
 
 var urlToTitle = make(map[string]string)
 
@@ -182,6 +183,15 @@ func insertToJSON(child string, parent string) {
 	})
 }
 
+func GetSolutionAndConvertToJSON() {
+	for parent, _ := range child_parent_bool[target] {
+		fmt.Println("Solusi", parent, depthOfNode[parent], depthTarget-1)
+		if depthOfNode[parent] == depthTarget-1 {
+			insertToSolution(target, parent)
+		}
+	}
+}
+
 func BFS(start_page []string, target_page string) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -270,20 +280,79 @@ func BFS(start_page []string, target_page string) {
 					totalErrorScrape += 1
 				})
 
+				c.OnHTML("link", func(e *colly.HTMLElement) {
+					if e.Attr("rel") == "canonical" {
+						page := e.Attr("href")[24:]
+						if page != currentPage {
+							mu.Lock()
+							// cek jika sudah pernah dicek dan berada pada depth yang sama tetapi beda parent
+							if !checkedNode[page] && page != root {
+								TotalCheckedArticleTitle += 1
+								checkedNode[page] = true
+							}
+							_, existParentKey := child_parent_bool[page]
+							if !existParentKey {
+								child_parent_bool[page] = make(map[string]bool)
+							}
+							depthOfNode[page] = depthOfNode[currentPage]
+
+							for keyParent, _ := range child_parent_bool[currentPage] {
+								// fmt.Println("PINDAHI PARENT", currentPage, keyParent)
+								child_parent_bool[page][keyParent] = true
+							}
+							if page == target {
+								// masukin ke solusi
+								fmt.Println(currentPage, target)
+								// insertToSolution(page, currentPage)
+								isFound = true
+								depthTarget = depthOfNode[currentPage]
+								fmt.Println("REDIRECT:", depthTarget)
+								e.Request.Abort()
+							}
+							mu.Unlock()
+						}
+					}
+				})
+
 				c.OnHTML("a", func(e *colly.HTMLElement) {
 					mu.Lock()
 					if e.Attr("class") != "mw-file-description" {
+						// if e.Attr("class") == "mw-redirect" {
+						// 	if isWiki(e.Attr("href")) && e.Attr("href") != root {
+						// 		page := e.Attr("href")
+						// 		cr := colly.NewCollector()
+						// 		cr.OnHTML("link", func(e *colly.HTMLElement) {
+						// 			if e.Attr("rel") == "canonical" {
+						// 				canonPage := e.Attr("href")[24:]
+						// 				checkedNode[canonPage] = true
+						// 				depthOfNode[canonPage] = currentDepth
+						// 				depthOfNode[page] = currentDepth
+						// 				if canonPage == target {
+						// 					fmt.Println("REDIRECT", canonPage)
+						// 					isFound = true
+						// 					insertToSolution(canonPage, currentPage)
+						// 				}
+						// 			}
+						// 		})
+						// 		cr.Visit(baseLink + page)
+						// 	}
+						// } else {
 						// cek apakah link wikipedia
 						if isWiki(e.Attr("href")) && e.Attr("href") != root {
 							page := e.Attr("href")
 							// cek jika sudah pernah dicek dan berada pada depth yang sama tetapi beda parent
 							if checkedNode[page] && page != root {
+								_, existParentTemp := child_parent_bool[page]
+								if !existParentTemp {
+									child_parent_bool[page] = make(map[string]bool)
+								}
 								if depthOfNode[page] == currentDepth && !child_parent_bool[page][currentPage] {
 									child_parent_bool[page][currentPage] = true
-									if page == target {
+									if page == target && currentDepth <= depthTarget {
 										// masukin ke solusi
-										insertToSolution(page, currentPage)
+										// insertToSolution(page, currentPage)
 										isFound = true
+										depthTarget = currentDepth
 
 										fmt.Println(currentPage, target)
 									}
@@ -297,13 +366,16 @@ func BFS(start_page []string, target_page string) {
 								child_parent_bool[page][currentPage] = true
 
 								nextBreadthList = append(nextBreadthList, page)
-								if page == target {
+								if page == target && currentDepth <= depthTarget {
 									// masukin ke solusi
-									insertToSolution(page, currentPage)
+									depthTarget = currentDepth
+									fmt.Println(currentPage, target)
+									// insertToSolution(page, currentPage)
 									isFound = true
 								}
 							}
 						}
+						// }
 					}
 					mu.Unlock()
 				})
@@ -388,4 +460,5 @@ func ResetData() {
 	child_parent_bool = make(map[string]map[string]bool)
 	solutionParentChildBool = make(map[string]map[string]bool)
 	currentDepth = 1
+	depthTarget = 999
 }

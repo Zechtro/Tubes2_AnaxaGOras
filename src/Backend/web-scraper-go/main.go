@@ -57,6 +57,7 @@ func request_response_Handler(w http.ResponseWriter, r *http.Request) {
 				startTime := time.Now()
 				fmt.Println("Processing BFS...")
 				b.BFS([]string{wiki + reqInfo.StartPage}, reqInfo.TargetPage)
+				b.GetSolutionAndConvertToJSON()
 				endTime := time.Now()
 				respInfo.Status = b.Status
 				respInfo.Error_Message = b.Err_msg

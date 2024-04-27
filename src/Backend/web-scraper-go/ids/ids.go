@@ -7,7 +7,6 @@ import (
 	"time"
 	. "web-scraper/structure"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
 	"github.com/gocolly/colly/extensions"
 )
@@ -53,38 +52,44 @@ func IDS(inputTitle string, target string, iteration int, wg *sync.WaitGroup) {
 	// 	fmt.Println(iteration, "Page visited: ", r.Request.URL)
 	// })
 
-	c.OnHTML("#bodyContent", func(e *colly.HTMLElement) {
-		e.DOM.Find("a").Each(func(_ int, s *goquery.Selection) {
-			if attr, ok := s.Attr("href"); ok {
-				if isWiki(attr) {
-					var foundTitle string = attr
+	c.OnHTML("a", func(e *colly.HTMLElement) {
+		// e.DOM.Find("a").Each(func(_ int, s *goquery.Selection) {
+		// if attr:= e.Attr("href"); ok {
+		if isWiki(e.Attr("href")) {
+			// if e.Attr("class") == "mw-redirect" {
 
-					mutex.Lock()                 // Mengunci akses ke variabel bersama
-					val := depthNode[foundTitle] // val bernilai nol jika foundTitle belum pernah discrape
-					newVal := depthNode[inputTitle] + 1
+			// } else if e.Attr("class") !=  {
 
-					if val != 0 && val == newVal {
-						childNparent[foundTitle] = append(childNparent[foundTitle], inputTitle)
-					} else if val == 0 {
-						PageScraped = PageScraped + 1
-						depthNode[foundTitle] = newVal
-						childNparent[foundTitle] = []string{inputTitle}
-					}
+			// }
+			var foundTitle string = e.Attr("href")
 
-					if foundTitle == target {
-						alrFound = true
-						fmt.Println(inputTitle)
-						fmt.Println(foundTitle)
-						fmt.Println(iteration)
-					} else if !alrFound && iteration != 1 && !(val == 0 || val > newVal) {
-						wg.Add(1) // Menambahkan goroutine baru ke wait group
-						// limiter <- 1
-						go IDS(foundTitle, target, iteration-1, wg)
-					}
-					mutex.Unlock() // Membuka kunci akses ke variabel bersama
-				}
+			mutex.Lock()                 // Mengunci akses ke variabel bersama
+			val := depthNode[foundTitle] // val bernilai nol jika foundTitle belum pernah discrape
+			newVal := depthNode[inputTitle] + 1
+
+			if val != 0 && val == newVal {
+				childNparent[foundTitle] = append(childNparent[foundTitle], inputTitle)
+			} else if val == 0 {
+				PageScraped = PageScraped + 1
+				depthNode[foundTitle] = newVal
+				childNparent[foundTitle] = []string{inputTitle}
 			}
-		})
+
+			if foundTitle == target {
+				insertToSolution(foundTitle, inputTitle)
+				alrFound = true
+				fmt.Println(inputTitle)
+				fmt.Println(foundTitle)
+				fmt.Println(iteration)
+			} else if iteration != 1 && !(val == 0 || val > newVal) {
+				wg.Add(1) // Menambahkan goroutine baru ke wait group
+				// limiter <- 1
+				go IDS(foundTitle, target, iteration-1, wg)
+			}
+			mutex.Unlock() // Membuka kunci akses ke variabel bersama
+		}
+		// }
+		// })
 
 	})
 	limiter <- 1
@@ -188,9 +193,9 @@ func MainIDS(inputTitle string, searchTitle string) {
 		fmt.Print(a[0])
 		fmt.Println("\nPage Scraped: ", PageScraped)
 
-		for _, parentTemp := range childNparent[target] {
-			insertToSolution(target, parentTemp)
-		}
+		// for _, parentTemp := range childNparent[target] {
+		// 	insertToSolution(target, parentTemp)
+		// }
 		Status = "OK"
 		Err_msg = ""
 		ResultDepth = depthNode[target]
